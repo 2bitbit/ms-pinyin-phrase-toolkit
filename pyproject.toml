@@ -1,0 +1,21 @@
+[project]
+name = "ms-pinyin-phrase-toolkit"
+version = "1.0.0"
+description = "Batch read/write Microsoft Pinyin IME user-defined phrases on Windows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["windows", "ime", "pinyin", "microsoft-pinyin", "mschxudp", "phrases"]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[tool.uv]
+package = false
