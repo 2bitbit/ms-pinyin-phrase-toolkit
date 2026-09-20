@@ -4,3 +4,7 @@ __pycache__/
 *.dat
 _tmp_*.dat
 .venv/
+
+# 编辑器/工具自动生成，与项目无关
+.vscode/
+.idea/
