@@ -23,12 +23,18 @@ uv run tools/msudp.py <子命令>
 
 ## 三条铁律
 
-### 1. 修改必须走 GUI「导入」，不要直接改词库文件
+### 1. 只有 GUI 操作会重载词库
 
-输入法启动时读一次 `ChsPinyinEUDPv1.lex` 并缓存，运行中不重读。
-直接写文件后：设置页列表不刷新、打字不生效、退出时还可能被内存副本覆盖。
+输入法**只在启动时**读 `ChsPinyinEUDPv1.lex` 并缓存。已实测确认**不会**重载的方式：
 
-正确路径：`export` 生成 `.dat` → 用户在设置页点「导入」。
+| 操作 | 是否重载 |
+|---|---|
+| 直接改 `.lex` 文件 | ❌ |
+| 切换输入法（Win+Space） | ❌ |
+| 杀掉 `ChsIME` 进程（服务会自动重启它） | ❌ |
+| 设置页「导入」/「添加」按钮 | ✅ |
+
+所以任何改动都必须经过设置页的「导入」或「添加」。
 
 ### 2. 生成的导入文件必须是全量
 
@@ -47,14 +53,29 @@ dd	2	Δ
 
 ## 工作流
 
-### 第 1 步：看现状
+### 方式一：全自动（首选）
 
 ```bash
-uv run tools/msudp.py list              # 列出当前短语
-uv run tools/msudp.py dump > current.tsv # 导出为可编辑 TSV
+uv run tools/apply_phrases.py <tsv>            # 全量替换
+uv run tools/apply_phrases.py --append <tsv>   # 保留现有，追加
 ```
 
-### 第 2 步：写 TSV
+脚本自动：改词库 → 必要时关闭停在错误页面的设置窗口 →
+用 `ms-settings:regionlanguage-chsime-pinyin-udp` 直达短语页 →
+填入路径并点「打开(O)」→ 回读设置页条数自证。**无需人工介入。**
+
+> 导入的几秒内若用户点击/切窗口/按 Esc 可能打断。脚本以「回读条数一致」为成功判据，
+> 不一致会报错退出；写入幂等，可安全重跑。
+
+### 方式二：手动导入（当 UI 自动化不可用时）
+
+1. `uv run tools/msudp.py dump > current.tsv` 查看现状
+2. 编辑 TSV（格式见下）
+3. `uv run tools/msudp.py export new.tsv out.dat`
+4. 用户在设置页点「导入」选 `out.dat`
+5. 让用户**切换一次输入法**（Win+Space）再测试
+
+## TSV 格式
 
 每行 `拼音 <TAB> 候选位置 <TAB> 输出文本`，`#` 开头为注释：
 
@@ -64,22 +85,6 @@ aa	2	Α
 ss	1	σ
 ss	2	Σ
 ```
-
-### 第 3 步：生成导入文件
-
-```bash
-uv run tools/msudp.py export new.tsv out.dat
-```
-
-此命令不触碰原词库。省略 `--lex` 时以当前用户默认词库为源。
-
-### 第 4 步：交给用户导入
-
-**必须由用户在 GUI 完成**，脚本无法可靠代劳：
-
-1. `设置 > 时间和语言 > 语言和区域 > 用户自定义短语`
-2. 点「导入」，选上一步的 `out.dat`
-3. **切换一次输入法**（Win+Space）再测试
 
 ## 子命令
 

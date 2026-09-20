@@ -2,12 +2,36 @@
 
 批量读写 Windows 微软拼音的「用户自定义短语」—— 用一份 TSV 管理全部触发码，一次导入。
 
+## 两条路线
+
+### 路线 A：全自动（推荐）
+
+```bash
+uv run tools/apply_phrases.py <tsv>            # 全量替换
+uv run tools/apply_phrases.py --append <tsv>   # 保留现有，追加
 ```
-uv run tools/msudp.py dump > my.tsv           # 1. 导出现有短语
+
+自动完成：改词库 → 关闭停在错误页面的设置窗口 → 用 URI 直达短语页 →
+填入文件路径并确认 → **回读设置页条数自证成功**。
+
+### 路线 B：手动导入（零 GUI 自动化）
+
+```bash
+uv run tools/msudp.py dump > my.tsv           # 1. 导出
 # 编辑 my.tsv，加上你要的触发码
 uv run tools/msudp.py export my.tsv out.dat   # 2. 生成导入文件
 # 3. 设置 > 时间和语言 > 语言和区域 > 用户自定义短语 > 导入 > 选 out.dat
 ```
+
+> [!IMPORTANT]
+> **为什么必须经过「导入」按钮？**
+> 输入法只在启动时读词库并缓存。实测：运行中改文件、切换输入法、
+> 甚至杀掉输入法进程（ChsIME）**都不会重载**。只有设置页的
+> 「导入 / 添加」会刷新内存词库。这是本项目的核心发现。
+
+> [!WARNING]
+> 路线 A 依赖 UI 自动化，导入的几秒内若用户点击、切换窗口或按 Esc 可能打断。
+> 脚本会在最后回读设置页验证条数，不一致就报错退出；写入是幂等的，可安全重跑。
 
 ## 解决什么问题
 
@@ -28,15 +52,24 @@ uv run tools/msudp.py list        # 应列出你现有的短语
 
 ## 命令
 
+### `msudp.py` — 词库读写
+
 | 命令 | 作用 |
 |---|---|
-| `msudp.py list [文件]` | 列出短语（含候选位置） |
-| `msudp.py dump [文件]` | 导出为 TSV |
-| `msudp.py export <tsv> <输出>` | 合并现有短语与 TSV，另存为导入文件 |
-| `msudp.py import <tsv>` | 直接写词库（需自行验证生效，见下） |
-| `msudp.py roundtrip [文件]` | 格式自检：重建并逐字节比对 |
+| `list [文件]` | 列出短语（含候选位置） |
+| `dump [文件]` | 导出为 TSV |
+| `export <tsv> <输出>` | 合并现有短语与 TSV，另存为导入文件 |
+| `import <tsv>` | 直接写词库（写前自动备份） |
+| `roundtrip [文件]` | 格式自检：重建并逐字节比对 |
 
 省略文件参数时使用当前用户的默认词库路径。
+
+### `apply_phrases.py` — 全自动应用
+
+| 命令 | 作用 |
+|---|---|
+| `apply_phrases.py <tsv>` | 全量替换并驱动 GUI 导入 |
+| `apply_phrases.py --append <tsv>` | 保留现有短语，追加后导入 |
 
 ## TSV 格式
 
