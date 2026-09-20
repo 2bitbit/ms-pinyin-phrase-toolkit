@@ -5,6 +5,10 @@ __pycache__/
 _tmp_*.dat
 .venv/
 
+# 临时短语表：不应留在仓库里（示例表在 examples/ 下，单独放行）
+*.tsv
+!examples/*.tsv
+
 # 编辑器/工具自动生成，与项目无关
 .vscode/
 .idea/

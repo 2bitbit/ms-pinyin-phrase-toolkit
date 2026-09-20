@@ -14,6 +14,23 @@ version: "1.1.0"
 uv run tools/msudp.py <子命令>
 ```
 
+## 文件放哪里
+
+**短语表（TSV）与生成的 `.dat` 一律放临时目录，不要写进本仓库。**
+
+本仓库是只读的工具代码；`*.tsv`（除 `examples/`）与 `*.dat` 已被 `.gitignore`
+排除，但仍应主动写到临时目录，避免污染工作区：
+
+```bash
+WORK="${TMPDIR:-/tmp}/msph_work"     # Windows: $env:TEMP\msph_work
+mkdir -p "$WORK"
+uv run tools/msudp.py dump > "$WORK/current.tsv"
+uv run tools/apply_silent.py "$WORK/plan.tsv"
+```
+
+回滚用的快照同样放临时目录。仓库里只保留代码、文档与 `examples/greek.tsv`
+这一个示例表。
+
 ## 何时使用
 
 - 用户要批量添加/修改/删除拼音输入法的自定义短语
