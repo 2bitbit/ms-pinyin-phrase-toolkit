@@ -25,7 +25,7 @@
 | 直接改 .lex 文件               | 否       |
 | 切换输入法 (Win+Space)         | 否       |
 | 杀掉 ChsIME 进程               | 部分（多字母/已学过的词可能碰巧生效） |
-| 杀掉 TextInputHost + ChsIME    | **是**（候选宿主才缓存 EUDP） |
+| 杀掉 TextInputHost + ChsIME，再 Win+Space 切走切回 | **是** |
 | 设置页「导入」按钮             | 是（不杀进程，走官方通知） |
 
 实测：设置页导入后 ChsIME PID 不变，三条全部生效。
