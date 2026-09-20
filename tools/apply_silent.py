@@ -33,9 +33,8 @@
 `ChsPinyinIH.dat`（会话历史），`i人` 没有。真正读 EUDP 的是
 候选宿主 TextInputHost，必须一起重启。
 
-因 InputMethod 有候选缓存，杀进程会打断当前那次未上屏的拼音；
-但代价仅约 0.5 秒，远轻于 GUI 方案抢焦点，故默认直接执行。
-需要精细控制时可加 `--wait-idle` 先等键鼠空闲。
+杀进程后词库已在磁盘上，但前台会话仍可能握着旧候选缓存；
+脚本会再发 Win+Space 切走再切回，让新 IME 绑到当前窗口。
 
 ## 与 apply_phrases.py 的区别
 
@@ -68,10 +67,86 @@ IDLE_THRESHOLD = 2.0
 IDLE_TIMEOUT = 60.0
 RESTART_TIMEOUT = 10.0
 PROCESS_TERMINATE = 0x0001
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK_LWIN = 0x5B
+VK_SPACE = 0x20
 
 _k32 = ctypes.WinDLL("kernel32", use_last_error=True)
 _k32.OpenProcess.restype = wintypes.HANDLE
 _k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+_u32 = ctypes.WinDLL("user32", use_last_error=True)
+ULONG_PTR = ctypes.c_size_t
+
+
+class KEYBDINPUT(ctypes.Structure):
+    """SendInput 键盘事件。"""
+
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class MOUSEINPUT(ctypes.Structure):
+    """SendInput 联合体对齐用，本脚本不发鼠标事件。"""
+
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class INPUT(ctypes.Structure):
+    """SendInput 条目。"""
+
+    class _U(ctypes.Union):
+        _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT)]
+
+    _anonymous_ = ("u",)
+    _fields_ = [("type", wintypes.DWORD), ("u", _U)]
+
+
+_u32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+_u32.SendInput.restype = wintypes.UINT
+
+
+def _key(vk: int, flags: int = 0) -> INPUT:
+    """构造一次按键按下或抬起。"""
+    inp = INPUT()
+    inp.type = INPUT_KEYBOARD
+    inp.ki = KEYBDINPUT(vk, 0, flags, 0, 0)
+    return inp
+
+
+def toggle_ime() -> None:
+    """Win+Space 切走再切回，让新拉起的 IME 绑到前台会话。
+
+    杀进程后词库已在磁盘上，但当前会话仍可能握着旧候选缓存；
+    实测需要主动切换一次输入法才会吃到新短语。切两次回到原布局。
+    """
+    def chord() -> None:
+        seq = (
+            _key(VK_LWIN),
+            _key(VK_SPACE),
+            _key(VK_SPACE, KEYEVENTF_KEYUP),
+            _key(VK_LWIN, KEYEVENTF_KEYUP),
+        )
+        arr = (INPUT * 4)(*seq)
+        sent = _u32.SendInput(4, arr, ctypes.sizeof(INPUT))
+        if sent != 4:
+            print(f"    SendInput 只发出 {sent}/4，win32={ctypes.get_last_error()}")
+        time.sleep(0.3)
+
+    chord()
+    chord()
 
 
 def _ps(cmd: str) -> str:
@@ -255,13 +330,17 @@ def main() -> None:
     elif after == before:
         print("    ⚠ 快照未变化，进程可能未真正重启（输入法可能不会重载）")
 
-    time.sleep(1.0)
+    print("[5] 切换输入法（Win+Space ×2）使前台会话重绑...")
+    time.sleep(0.4)
+    toggle_ime()
+
+    time.sleep(0.6)
     _, back = msudp.read(lex)
     ok = len(back) == len(recs)
-    print(f"[5] 回读校验：{len(back)} 条，{'一致' if ok else '不一致'}")
+    print(f"[6] 回读校验：{len(back)} 条，{'一致' if ok else '不一致'}")
     print()
     if ok:
-        print(f"==> 完成。请直接打字验证（无需切换输入法）")
+        print("==> 完成。可直接打字验证")
         for r in back[-min(3, len(back)):]:
             print(f"    {r.pinyin} -> {r.text}（位置 {r.index}）")
     else:

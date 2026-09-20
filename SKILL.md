@@ -97,7 +97,7 @@ uv run tools/apply_silent.py <tsv>            # 全量替换
 uv run tools/apply_silent.py --append <tsv>   # 保留现有，追加
 ```
 
-流程：改词库 → 杀 TextInputHost + ChsIME（约 0.5s 自动拉起）→ 回读校验。
+流程：改词库 → 杀 TextInputHost + ChsIME → Win+Space 切走再切回 → 回读校验。
 
 **不弹任何窗口、不抢焦点、不阻塞等待。** 杀进程最多让你当前那次未上屏的
 拼音断掉，代价约 0.5 秒，比 GUI 方案抢焦点轻得多，因此默认直接执行；

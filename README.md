@@ -25,7 +25,7 @@ uv run tools/apply_silent.py --add qq:1:甲 --add ww:2:乙
 uv run tools/apply_silent.py plan.tsv --append
 ```
 
-流程：改词库 → 重启输入法进程使其重载 → 回读校验。
+流程：改词库 → 杀 TextInputHost + ChsIME → Win+Space 切走再切回 → 回读校验。
 
 **不弹任何窗口、不抢焦点、不阻塞等待。** 杀进程最多让你当前那次未上屏的
 拼音断掉，代价约 0.5 秒，比 GUI 方案抢焦点轻得多，所以默认直接执行；
@@ -43,10 +43,9 @@ uv run tools/apply_phrases.py --append <tsv>   # 保留现有，追加
 
 > [!IMPORTANT]
 > **为什么改完文件要重启输入法？**
-> 输入法只在启动时读词库并缓存，运行中改文件、切换输入法（Win+Space）
-> 都**不会**重载。实测可行的是两条：杀掉 **TextInputHost + ChsIME**
-> （候选宿主才缓存 EUDP；只杀 ChsIME 时已学过的词可能碰巧生效），
-> 或走设置页「导入」。前者被做成了路线 A。
+> 输入法只在启动时读词库并缓存，运行中改文件**不会**重载。
+> 单独按 Win+Space 也不够。实测可行的是：杀掉 **TextInputHost + ChsIME**
+> 后再 Win+Space 切走切回（让新进程绑到前台会话），或走设置页「导入」。
 
 > [!WARNING]
 > 路线 B 依赖 UI 自动化，导入的几秒内若用户点击、切换窗口或按 Esc 可能打断。
