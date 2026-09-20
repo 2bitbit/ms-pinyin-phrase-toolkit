@@ -14,12 +14,18 @@ version: "1.1.0"
 uv run tools/msudp.py <子命令>
 ```
 
-## 文件放哪里
+## 加短语：优先不落文件
 
-**短语表（TSV）与生成的 `.dat` 一律放临时目录，不要写进本仓库。**
+加一两条短语时**不要生成 TSV 文件**，直接用 `--add` 或 `--stdin`：
 
-本仓库是只读的工具代码；`*.tsv`（除 `examples/`）与 `*.dat` 已被 `.gitignore`
-排除，但仍应主动写到临时目录，避免污染工作区：
+```bash
+uv run tools/apply_silent.py --add aa:1:α --append      # 格式 <拼音>:<位>:<文本>
+uv run tools/apply_silent.py --add qq:1:甲 --add ww:2:乙
+"u`t1`t有什么" | uv run tools/apply_silent.py --stdin --append
+```
+
+只有批量维护（几十条以上）才值得落到 TSV 文件；那种情况把文件写在
+临时目录，**不要写进本仓库**：
 
 ```bash
 WORK="${TMPDIR:-/tmp}/msph_work"     # Windows: $env:TEMP\msph_work
@@ -28,8 +34,8 @@ uv run tools/msudp.py dump > "$WORK/current.tsv"
 uv run tools/apply_silent.py "$WORK/plan.tsv"
 ```
 
-回滚用的快照同样放临时目录。仓库里只保留代码、文档与 `examples/greek.tsv`
-这一个示例表。
+本仓库是只读的工具代码；`*.tsv`（除 `examples/`）与 `*.dat` 已被 `.gitignore`
+排除，但仍不应往里写。
 
 ## 何时使用
 

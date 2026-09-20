@@ -6,9 +6,23 @@
 
 ### 路线 A：无 GUI（推荐，零窗口零干扰）
 
+加一两条短语**不需要任何文件**：
+
 ```bash
-uv run tools/apply_silent.py <tsv>            # 全量替换
-uv run tools/apply_silent.py --append <tsv>   # 保留现有，追加
+uv run tools/apply_silent.py --add aa:1:α --append      # <拼音>:<位>:<文本>
+uv run tools/apply_silent.py --add qq:1:甲 --add ww:2:乙
+```
+
+也可以走管道：
+
+```bash
+"u`t1`t有什么" | uv run tools/apply_silent.py --stdin --append
+```
+
+批量维护时再从 TSV 读（`--append` 保留现有，默认全量替换）：
+
+```bash
+uv run tools/apply_silent.py plan.tsv --append
 ```
 
 流程：等用户键鼠空闲 → 改词库 → 重启输入法进程使其重载 → 回读校验。
@@ -71,8 +85,11 @@ uv run tools/msudp.py list        # 应列出你现有的短语
 
 | 命令 | 作用 |
 |---|---|
-| `apply_silent.py <tsv>` | 全量替换；等空闲 → 改文件 → 重启输入法 |
-| `apply_silent.py --append <tsv>` | 保留现有短语，追加后应用 |
+| `apply_silent.py --add <拼音>:<位>:<文本> [...]` | 直接给短语，**不落文件** |
+| `apply_silent.py --stdin` | 从标准输入读 TSV |
+| `apply_silent.py <tsv>` | 从 TSV 文件读 |
+
+均支持 `--append`（保留现有短语；默认全量替换）。
 
 ### `apply_phrases.py` — GUI 应用（备选）
 

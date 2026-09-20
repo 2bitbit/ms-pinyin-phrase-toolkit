@@ -5,8 +5,16 @@
 """全自动应用自定义短语（无 GUI 版）。
 
 用法:
-    uv run apply_silent.py <tsv>            # 全量替换
-    uv run apply_silent.py --append <tsv>   # 保留现有，追加
+    uv run apply_silent.py <tsv> [--append]               # 从 TSV 文件读
+    uv run apply_silent.py --stdin [--append]             # 从标准输入读
+    uv run apply_silent.py --add <拼音>:<位>:<文本> [...]  # 直接给短语
+
+`--append` 保留现有短语；默认全量替换。
+
+示例（不落任何文件）:
+
+    uv run tools/apply_silent.py --add aa:1:α --append
+    echo "aa`t1`tα" | uv run tools/apply_silent.py --stdin
 
 ## 原理
 
@@ -131,20 +139,70 @@ def restart_ime() -> tuple[str, str, float]:
     return before, ime_state(), time.monotonic() - t0
 
 
+def parse_add(items: list[str]) -> tuple[list[msudp.Rec], list[str]]:
+    """解析 `拼音:位:文本` 形式的参数。"""
+    recs: list[msudp.Rec] = []
+    errs: list[str] = []
+    for raw in items:
+        parts = raw.split(":", 2)
+        if len(parts) != 3:
+            errs.append(f"{raw!r}：需为 <拼音>:<候选位>:<文本>")
+            continue
+        pinyin, pos, text = parts[0].strip(), parts[1].strip(), parts[2]
+        if not pos.isdigit():
+            errs.append(f"{raw!r}：候选位须为数字")
+            continue
+        rec = msudp.Rec(pinyin=pinyin, index=int(pos), text=text)
+        if (e := msudp.check(rec)) is not None:
+            errs.append(f"{raw!r}：{e}")
+            continue
+        recs.append(rec)
+    return recs, errs
+
+
+USAGE = """用法:
+  apply_silent.py <tsv> [--append]                 从 TSV 文件读
+  apply_silent.py --stdin [--append]               从标准输入读 TSV
+  apply_silent.py --add <拼音>:<位>:<文本> [...]    直接给短语
+
+示例（不落任何文件）:
+  uv run tools/apply_silent.py --add aa:1:α --append
+  uv run tools/apply_silent.py --add qq:1:测试 --add ww:2:测试2
+"""
+
+
+def parse_input(argv: list[str]) -> tuple[list[msudp.Rec], list[str]]:
+    """按参数形式取得待写入的记录（支持文件 / stdin / 直接参数）。"""
+    if "--add" in argv:
+        items = argv[argv.index("--add") + 1:]
+        if not items or items[0].startswith("--"):
+            raise SystemExit(f"--add 缺少参数\n\n{USAGE}")
+        return parse_add(items)
+    if "--stdin" in argv:
+        # 显式按 UTF-8 解码, 避免 PowerShell 管道下中文与符号乱码
+        text = sys.stdin.buffer.read().decode("utf-8")
+        if not text.strip():
+            raise SystemExit("标准输入为空")
+        return msudp.parse_tsv(text)
+    files = [a for a in argv if not a.startswith("--")]
+    if not files:
+        raise SystemExit(USAGE)
+    return msudp.parse_tsv(Path(files[0]).read_text(encoding="utf-8"))
+
+
 def main() -> None:
     argv = sys.argv[1:]
     append = "--append" in argv
     argv = [a for a in argv if a != "--append"]
     if not argv:
-        raise SystemExit(__doc__)
-    tsv = Path(argv[0])
+        raise SystemExit(USAGE)
     lex = msudp.default_lex()
 
-    new, errs = msudp.parse_tsv(tsv.read_text(encoding="utf-8"))
+    new, errs = parse_input(argv)
     for e in errs:
         print(f"  跳过：{e}")
     if not new:
-        raise SystemExit("TSV 中没有可用的短语")
+        raise SystemExit("没有可用的短语")
 
     meta, existing = msudp.read(lex)
     if append:
