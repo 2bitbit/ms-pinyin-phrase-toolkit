@@ -30,8 +30,9 @@
 ChsIME 由 TextInputManagementService 托管，杀掉后约 1 秒内自动重启，
 重启时重新读取词库文件 —— 于是新短语立即生效。
 
-因 InputMethod 有候选缓存，杀进程时若正在输入会打断该次输入，
-故本脚本先用 GetLastInputInfo 等待用户键鼠空闲再动手。
+因 InputMethod 有候选缓存，杀进程会打断当前那次未上屏的拼音；
+但代价仅约 0.5 秒，远轻于 GUI 方案抢焦点，故默认直接执行。
+需要精细控制时可加 `--wait-idle` 先等键鼠空闲。
 
 ## 与 apply_phrases.py 的区别
 
@@ -165,9 +166,13 @@ USAGE = """用法:
   apply_silent.py --stdin [--append]               从标准输入读 TSV
   apply_silent.py --add <拼音>:<位>:<文本> [...]    直接给短语
 
+选项:
+  --append     保留现有短语（默认全量替换）
+  --wait-idle  先等键鼠空闲再执行（默认不等；杀进程仅 0.5s，通常无需等待）
+
 示例（不落任何文件）:
   uv run tools/apply_silent.py --add aa:1:α --append
-  uv run tools/apply_silent.py --add qq:1:测试 --add ww:2:测试2
+  "aa`t1`tα" | uv run tools/apply_silent.py --stdin --append
 """
 
 
@@ -213,13 +218,17 @@ def main() -> None:
         recs = new
         print(f"[1] 替换：{len(existing)} 条 -> {len(new)} 条")
 
-    print(f"[2] 等待键鼠空闲（阈值 {IDLE_THRESHOLD}s，最多 {IDLE_TIMEOUT:.0f}s）...",
-          flush=True)
-    got = idle.wait_idle(IDLE_THRESHOLD, IDLE_TIMEOUT)
-    if got < IDLE_THRESHOLD:
-        print(f"    用户持续操作中（仅空闲 {got:.1f}s），放弃以免打断输入")
-        raise SystemExit(1)
-    print(f"    已空闲 {got:.1f}s，开始写入")
+    # 默认不等空闲：无 GUI 方案下杀进程仅约 0.5 秒，最多让当前那次未上屏的
+    # 拼音断掉，比「弹窗抢焦点」轻得多，不值得为它阻塞命令。
+    # 需要精细控制时显式加 --wait-idle。
+    if "--wait-idle" in argv:
+        print(f"[2] 等待键鼠空闲（阈值 {IDLE_THRESHOLD}s，最多 {IDLE_TIMEOUT:.0f}s）...",
+              flush=True)
+        got = idle.wait_idle(IDLE_THRESHOLD, IDLE_TIMEOUT)
+        if got < IDLE_THRESHOLD:
+            print(f"    用户持续操作中（仅空闲 {got:.1f}s），放弃以免打断输入")
+            raise SystemExit(1)
+        print(f"    已空闲 {got:.1f}s，开始写入")
 
     lex.write_bytes(msudp.build(meta, recs))
     print(f"[3] 已写入词库：{len(recs)} 条，{lex.stat().st_size}B")
