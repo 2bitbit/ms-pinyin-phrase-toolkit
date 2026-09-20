@@ -172,6 +172,7 @@ ss	2	Σ
 记录头 16B: magic(4)=10001000 | offset(2)=0x10+len(pinyin含\0)
             | candidate(1)=候选位置 | candidate2(1)=6 | unknown8(8)
 头部之后紧跟拼音；offset 指向短语
+记录必须按 (拼音, 候选位置) 排序，否则 IME 查找错位
 ```
 
 ## 安全须知

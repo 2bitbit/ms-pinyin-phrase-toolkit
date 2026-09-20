@@ -64,10 +64,9 @@ def test_roundtrip() -> None:
     tmp.write_bytes(data)
 
     meta2, back = msudp.read(tmp)
+    expect = sorted(recs, key=lambda r: (r.pinyin, r.index))
     check("读回条数一致", len(back) == len(recs), f"{len(back)} != {len(recs)}")
-    check("读回内容一致", back == [msudp.Rec(r.pinyin, r.index, r.text,
-                                             r.candidate2, r.unknown8)
-                                   for r in recs])
+    check("读回内容一致（拼音序）", back == expect)
     data2 = msudp.build(meta2, back)
     check("二次写出逐字节一致", data2 == data,
           f"{len(data2)}B vs {len(data)}B")
@@ -168,6 +167,21 @@ def test_merge() -> None:
     check("未冲突项保留", any(r.pinyin == "bb" and r.text == "keep" for r in merged))
 
 
+def test_build_sorts_by_pinyin() -> None:
+    """写出必须按 (拼音, 位置) 排序，否则 IME 查找会错位。"""
+    recs = [
+        msudp.Rec("t", 2, "天台"),
+        msudp.Rec("p", 1, "大侠"),
+        msudp.Rec("i", 1, "i人"),
+    ]
+    tmp = ROOT / "tests" / "_tmp_sort.dat"
+    tmp.write_bytes(msudp.build(tmp_meta(), recs))
+    _, back = msudp.read(tmp)
+    tmp.unlink(missing_ok=True)
+    check("拼音序 i < p < t", [r.pinyin for r in back] == ["i", "p", "t"],
+          str([r.pinyin for r in back]))
+
+
 def test_bad_input() -> None:
     """非法文件应明确报错而非静默返回。"""
     tmp = ROOT / "tests" / "_tmp_bad.dat"
@@ -188,7 +202,7 @@ def main() -> None:
     print("=" * 58)
     for fn in (test_roundtrip, test_header_invariants, test_offset_field,
                test_empty, test_validate, test_tsv, test_tsv_errors,
-               test_merge, test_bad_input):
+               test_merge, test_build_sorts_by_pinyin, test_bad_input):
         fn()
     print("=" * 58)
     print(f"通过 {len(PASSED)} / {len(PASSED) + len(FAILED)}")

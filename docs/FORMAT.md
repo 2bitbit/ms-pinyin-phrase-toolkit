@@ -62,6 +62,9 @@ phrase_offsets[N] + offset + len(phrase) == phrase_offsets[N+1]
 phrase_start + phrase_offsets[N] == 第 N 条记录的起点
 ```
 
+记录按 `(拼音, 候选位置)` 排序。官方导出与 GUI 导入产物均如此。
+无序时 IME 按有序表查找会错位：文件顺序若是 `t, p`，打 `p` 会把两条都塞进候选，打 `t` 一条都找不到。
+
 ## 踩过的坑
 
 以下三处是实际逆向时出错并付出调试代价的地方，记录下来避免重蹈。

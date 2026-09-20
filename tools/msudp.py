@@ -175,7 +175,13 @@ def read(path: Path) -> tuple[dict, list[Rec]]:
 
 
 def build(meta: dict, recs: list[Rec]) -> bytes:
-    """按记录列表重建完整文件字节。"""
+    """按记录列表重建完整文件字节。
+
+    记录按 (拼音, 候选位置) 排序后再写入。官方导出与 GUI 导入产物
+    均为拼音序；无序时 IME 按有序表查找会错位（例如 ``t`` 找不到、
+    ``p`` 却同时带上 ``t`` 的短语）。
+    """
+    recs = sorted(recs, key=lambda r: (r.pinyin, r.index))
     count = len(recs)
     start = PHRASE_OFFSET_START + 4 * count
 
