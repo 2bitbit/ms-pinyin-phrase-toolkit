@@ -53,18 +53,14 @@ from ctypes import wintypes
 from pathlib import Path
 
 HERE = Path(__file__).parent
-for _mod in ("idle", "msudp"):
-    _spec = importlib.util.spec_from_file_location(_mod, HERE / f"{_mod}.py")
-    _m = importlib.util.module_from_spec(_spec)
-    sys.modules[_mod] = _m
-    _spec.loader.exec_module(_m)
+_spec = importlib.util.spec_from_file_location("msudp", HERE / "msudp.py")
+_m = importlib.util.module_from_spec(_spec)
+sys.modules["msudp"] = _m
+_spec.loader.exec_module(_m)
 
-import idle  # noqa: E402
 import msudp  # noqa: E402
 
 IME_PROCESSES = ("ChsIME", "TextInputHost")
-IDLE_THRESHOLD = 2.0
-IDLE_TIMEOUT = 60.0
 RESTART_TIMEOUT = 10.0
 PROCESS_TERMINATE = 0x0001
 INPUT_KEYBOARD = 1
@@ -252,7 +248,6 @@ USAGE = """用法:
 
 选项:
   --append     保留现有短语（默认全量替换）
-  --wait-idle  先等键鼠空闲再执行（默认不等；杀进程仅 0.5s，通常无需等待）
 
 示例（不落任何文件）:
   uv run tools/apply_silent.py --add aa:1:α --append
@@ -306,18 +301,6 @@ def main() -> None:
     else:
         recs = new
         print(f"[1] 替换：{len(existing)} 条 -> {len(new)} 条")
-
-    # 默认不等空闲：无 GUI 方案下杀进程仅约 0.5 秒，最多让当前那次未上屏的
-    # 拼音断掉，比「弹窗抢焦点」轻得多，不值得为它阻塞命令。
-    # 需要精细控制时显式加 --wait-idle。
-    if "--wait-idle" in argv:
-        print(f"[2] 等待键鼠空闲（阈值 {IDLE_THRESHOLD}s，最多 {IDLE_TIMEOUT:.0f}s）...",
-              flush=True)
-        got = idle.wait_idle(IDLE_THRESHOLD, IDLE_TIMEOUT)
-        if got < IDLE_THRESHOLD:
-            print(f"    用户持续操作中（仅空闲 {got:.1f}s），放弃以免打断输入")
-            raise SystemExit(1)
-        print(f"    已空闲 {got:.1f}s，开始写入")
 
     lex.write_bytes(msudp.build(meta, recs))
     print(f"[3] 已写入词库：{len(recs)} 条，{lex.stat().st_size}B")

@@ -22,7 +22,7 @@ uv run tools/apply_silent.py plan.tsv --append
 
 流程：写 `.lex` → 杀 `TextInputHost` + `ChsIME` → Win+Space 切走再切回 → 回读校验。
 
-不弹窗、不抢焦点。杀进程最多打断当前那次未上屏的拼音（约 0.5s）。需要等空闲时加 `--wait-idle`。
+不弹窗、不抢焦点。杀进程最多打断当前那次未上屏的拼音（约 0.5s）。
 
 ## 备选：GUI 导入
 
