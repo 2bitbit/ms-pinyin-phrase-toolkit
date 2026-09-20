@@ -14,24 +14,32 @@ version: "1.1.0"
 uv run tools/msudp.py <子命令>
 ```
 
-## 加短语：优先不落文件
+## 默认用法：不落文件
 
-加一两条短语时**不要生成 TSV 文件**，直接用 `--add` 或 `--stdin`：
+**不要为了加短语去生成 TSV 文件。** `append` 时优先用 `--stdin`（管道），
+其次用 `--add`（直接给短语）：
 
 ```bash
-uv run tools/apply_silent.py --add aa:1:α --append      # 格式 <拼音>:<位>:<文本>
-uv run tools/apply_silent.py --add qq:1:甲 --add ww:2:乙
-"u`t1`t有什么" | uv run tools/apply_silent.py --stdin --append
+# 推荐：管道喂 stdin
+"aa`t1`tα" | uv run tools/apply_silent.py --stdin --append
+printf 'aa\t1\tα\nbb\t1\tβ\n' | uv run tools/apply_silent.py --stdin --append
+
+# 也可以：--add 直接给，格式 <拼音>:<位>:<文本>，可重复
+uv run tools/apply_silent.py --add aa:1:α --append
+uv run tools/apply_silent.py --add qq:1:甲 --add ww:2:乙 --append
 ```
 
-只有批量维护（几十条以上）才值得落到 TSV 文件；那种情况把文件写在
-临时目录，**不要写进本仓库**：
+`--stdin` 按 UTF-8 显式解码，中文与 `α` 之类的符号不会乱码。
+
+## 例外：批量维护才落文件
+
+只有几十条以上、需要反复编辑时才写 TSV，且**必须写在临时目录，不要写进本仓库**：
 
 ```bash
 WORK="${TMPDIR:-/tmp}/msph_work"     # Windows: $env:TEMP\msph_work
 mkdir -p "$WORK"
 uv run tools/msudp.py dump > "$WORK/current.tsv"
-uv run tools/apply_silent.py "$WORK/plan.tsv"
+uv run tools/apply_silent.py "$WORK/plan.tsv" --append
 ```
 
 本仓库是只读的工具代码；`*.tsv`（除 `examples/`）与 `*.dat` 已被 `.gitignore`
