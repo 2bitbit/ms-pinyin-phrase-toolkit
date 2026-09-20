@@ -63,8 +63,9 @@ uv run tools/apply_silent.py "$WORK/plan.tsv" --append
 |---|---|
 | 直接改 `.lex` 文件 | ❌ |
 | 切换输入法（Win+Space） | ❌ |
-| 杀掉 `ChsIME` 进程 | ✅ **约 1 秒内服务自动重启并重载** |
-| 设置页「导入」/「添加」 | ✅ |
+| 杀掉 `ChsIME` | 部分：已学过的词（进了 `ChsPinyinIH.dat`）可能碰巧生效 |
+| 杀掉 `TextInputHost` + `ChsIME` | ✅ 候选宿主才缓存 EUDP |
+| 设置页「导入」/「添加」 | ✅ 不杀进程，走官方通知 |
 
 > ⚠️ 踩坑记录：`Stop-Process` 与 `taskkill /F` 对 `ChsIME` 都会返回
 > `Access is denied`；必须直接调 Win32 API
@@ -96,7 +97,7 @@ uv run tools/apply_silent.py <tsv>            # 全量替换
 uv run tools/apply_silent.py --append <tsv>   # 保留现有，追加
 ```
 
-流程：改词库 → 杀 ChsIME（0.5s 自动重启）→ 回读校验。
+流程：改词库 → 杀 TextInputHost + ChsIME（约 0.5s 自动拉起）→ 回读校验。
 
 **不弹任何窗口、不抢焦点、不阻塞等待。** 杀进程最多让你当前那次未上屏的
 拼音断掉，代价约 0.5 秒，比 GUI 方案抢焦点轻得多，因此默认直接执行；

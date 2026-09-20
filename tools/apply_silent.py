@@ -24,11 +24,14 @@
 |-------------------------------|----------|
 | 直接改 .lex 文件               | 否       |
 | 切换输入法 (Win+Space)         | 否       |
-| 杀掉 ChsIME 进程               | **是**   |
-| 设置页「导入」按钮             | 是       |
+| 杀掉 ChsIME 进程               | 部分（多字母/已学过的词可能碰巧生效） |
+| 杀掉 TextInputHost + ChsIME    | **是**（候选宿主才缓存 EUDP） |
+| 设置页「导入」按钮             | 是（不杀进程，走官方通知） |
 
-ChsIME 由 TextInputManagementService 托管，杀掉后约 1 秒内自动重启，
-重启时重新读取词库文件 —— 于是新短语立即生效。
+实测：设置页导入后 ChsIME PID 不变，三条全部生效。
+只杀 ChsIME 时 `p`/`t` 能出词、`i` 不能 —— `屁股`/`剔骨` 已写入
+`ChsPinyinIH.dat`（会话历史），`i人` 没有。真正读 EUDP 的是
+候选宿主 TextInputHost，必须一起重启。
 
 因 InputMethod 有候选缓存，杀进程会打断当前那次未上屏的拼音；
 但代价仅约 0.5 秒，远轻于 GUI 方案抢焦点，故默认直接执行。
@@ -60,7 +63,7 @@ for _mod in ("idle", "msudp"):
 import idle  # noqa: E402
 import msudp  # noqa: E402
 
-IME_PROCESS = "ChsIME"
+IME_PROCESSES = ("ChsIME", "TextInputHost")
 IDLE_THRESHOLD = 2.0
 IDLE_TIMEOUT = 60.0
 RESTART_TIMEOUT = 10.0
@@ -86,20 +89,25 @@ def _ps(cmd: str) -> str:
 
 
 def ime_state() -> str:
-    """当前 ChsIME 的 (PID, 启动时间) 快照。
+    """当前输入法相关进程的 (名, PID, 启动时间) 快照。
 
-    用启动时间而非 PID 判断重启：Windows 会复用 PID，实测杀进程后
-    新进程可能拿到相同 PID，导致「PID 变了」这一判据失效。
+    用启动时间而非 PID 判断重启：Windows 会复用 PID。
     """
-    out = _ps(f"Get-Process {IME_PROCESS} -ErrorAction SilentlyContinue | "
-              "ForEach-Object { \"$($_.Id)@$($_.StartTime.Ticks)\" }")
+    names = ",".join(f"'{n}'" for n in IME_PROCESSES)
+    out = _ps(
+        f"Get-Process -Name {names} -ErrorAction SilentlyContinue | "
+        "ForEach-Object { \"$($_.ProcessName)=$($_.Id)@$($_.StartTime.Ticks)\" }"
+    )
     return out.strip()
 
 
 def ime_pids() -> list[int]:
-    """当前 ChsIME 的所有 PID。"""
-    out = _ps(f"@(Get-Process {IME_PROCESS} -ErrorAction SilentlyContinue | "
-              "Select-Object -ExpandProperty Id) -join ','")
+    """当前 ChsIME 与 TextInputHost 的 PID。"""
+    names = ",".join(f"'{n}'" for n in IME_PROCESSES)
+    out = _ps(
+        f"@(Get-Process -Name {names} -ErrorAction SilentlyContinue | "
+        "Select-Object -ExpandProperty Id) -join ','"
+    )
     return [int(x) for x in out.split(",") if x.strip().isdigit()]
 
 
@@ -123,8 +131,9 @@ def kill_pid(pid: int) -> bool:
 
 
 def restart_ime() -> tuple[str, str, float]:
-    """杀掉输入法进程并等待服务自动重启。
+    """杀掉 ChsIME 与 TextInputHost，等待服务自动拉起。
 
+    只杀 ChsIME 不够：候选窗口在 TextInputHost 里，EUDP 缓存在那里。
     返回 (杀前快照, 重启后快照, 耗时秒)。
     """
     before = ime_state()
@@ -135,7 +144,7 @@ def restart_ime() -> tuple[str, str, float]:
     while time.monotonic() - t0 < RESTART_TIMEOUT:
         time.sleep(0.3)
         now = ime_state()
-        if now and now != before:
+        if now and now != before and all(n in now for n in IME_PROCESSES):
             return before, now, time.monotonic() - t0
     return before, ime_state(), time.monotonic() - t0
 
@@ -210,6 +219,11 @@ def main() -> None:
         raise SystemExit("没有可用的短语")
 
     meta, existing = msudp.read(lex)
+    # GUI 导入会给整批记录写同一份 unknown8；新记录沿用现有文件里的值，
+    # 避免默认 00 00 00 00 96 0a 99 20 与当前会话标识不一致。
+    learned = next((r.unknown8 for r in existing if r.unknown8), msudp.DEFAULT_UNKNOWN8)
+    new = [msudp.Rec(pinyin=r.pinyin, index=r.index, text=r.text,
+                     candidate2=r.candidate2, unknown8=learned) for r in new]
     if append:
         recs, dropped = msudp.merge(existing, new)
         print(f"[1] 追加：现有 {len(existing)} 条 + 新增 {len(new)} 条"
