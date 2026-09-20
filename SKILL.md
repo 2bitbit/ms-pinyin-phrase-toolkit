@@ -23,18 +23,23 @@ uv run tools/msudp.py <子命令>
 
 ## 三条铁律
 
-### 1. 只有 GUI 操作会重载词库
+### 1. 只有 GUI 操作或「杀输入法进程」会重载词库
 
-输入法**只在启动时**读 `ChsPinyinEUDPv1.lex` 并缓存。已实测确认**不会**重载的方式：
+输入法只在启动时读 `ChsPinyinEUDPv1.lex` 并缓存。实测结论（判据是**用户实际
+打字能否打出新短语**，而不是设置页列表是否刷新 —— 后者只是页面缓存）：
 
 | 操作 | 是否重载 |
 |---|---|
 | 直接改 `.lex` 文件 | ❌ |
 | 切换输入法（Win+Space） | ❌ |
-| 杀掉 `ChsIME` 进程（服务会自动重启它） | ❌ |
-| 设置页「导入」/「添加」按钮 | ✅ |
+| 杀掉 `ChsIME` 进程 | ✅ **约 1 秒内服务自动重启并重载** |
+| 设置页「导入」/「添加」 | ✅ |
 
-所以任何改动都必须经过设置页的「导入」或「添加」。
+> ⚠️ 踩坑记录：`Stop-Process` 与 `taskkill /F` 对 `ChsIME` 都会返回
+> `Access is denied`；必须直接调 Win32 API
+> `OpenProcess(PROCESS_TERMINATE)` + `TerminateProcess`。
+> 且判断是否重启成功要用**进程启动时间**，不能用 PID（Windows 会复用 PID）。
+> 用错这两点会导致脚本「以为杀掉了其实没杀」，从而误判该方案无效。
 
 ### 2. 生成的导入文件必须是全量
 
@@ -53,27 +58,34 @@ dd	2	Δ
 
 ## 工作流
 
-### 方式一：全自动（首选）
+### 方式一：无 GUI（推荐，零窗口零干扰）
+
+```bash
+uv run tools/apply_silent.py <tsv>            # 全量替换
+uv run tools/apply_silent.py --append <tsv>   # 保留现有，追加
+```
+
+流程：等用户键鼠空闲 → 改词库 → 杀 ChsIME（0.5s 自动重启）→ 回读校验。
+
+**不弹任何窗口、不抢焦点。** 空闲检测（`GetLastInputInfo`）保证不在用户打字时动手；
+若用户持续操作超过 60 秒则放弃并报错，不打断。
+
+### 方式二：GUI 导入（无 GUI 方案不可用时）
 
 ```bash
 uv run tools/apply_phrases.py <tsv>            # 全量替换
 uv run tools/apply_phrases.py --append <tsv>   # 保留现有，追加
 ```
 
-脚本自动：改词库 → 必要时关闭停在错误页面的设置窗口 →
-用 `ms-settings:regionlanguage-chsime-pinyin-udp` 直达短语页 →
-填入路径并点「打开(O)」→ 回读设置页条数自证。**无需人工介入。**
+会打开设置窗口、用 `ms-settings:regionlanguage-chsime-pinyin-udp` 直达短语页、
+点「导入」并填入路径。**会弹窗抢焦点**，是备选方案。
 
-> 导入的几秒内若用户点击/切窗口/按 Esc 可能打断。脚本以「回读条数一致」为成功判据，
-> 不一致会报错退出；写入幂等，可安全重跑。
-
-### 方式二：手动导入（当 UI 自动化不可用时）
+### 方式三：纯手动
 
 1. `uv run tools/msudp.py dump > current.tsv` 查看现状
 2. 编辑 TSV（格式见下）
 3. `uv run tools/msudp.py export new.tsv out.dat`
 4. 用户在设置页点「导入」选 `out.dat`
-5. 让用户**切换一次输入法**（Win+Space）再测试
 
 ## TSV 格式
 
