@@ -1,4 +1,4 @@
-# ms-pinyin-phrase-toolkit
+# ms-pinyin-phrase-toolkit（开发中）
 
 批量读写 Windows 微软拼音的「用户自定义短语」—— 用一份 TSV 管理全部触发码，一次导入。
 
